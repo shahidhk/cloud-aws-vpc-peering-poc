@@ -1,4 +1,5 @@
 import os
+import json
 import sys
 import psycopg2
 
@@ -10,58 +11,58 @@ from flask import g
 app = Flask(__name__)
 
 
-db_map_filename = os.path.join(app.instance_path,'db_map.json')
+db_map_filename = os.path.join(os.getcwd(),'db_map.json')
 
 def get_db_map():
   db_map_env = os.environ.get('DB_MAP')
-
+  if db_map_env != None:
+    return json.loads(db_map_env)
   exists = os.path.isfile(db_map_filename)
   if exists:
-    print('file exists')
     with open(db_map_filename) as f_in:
-      print('open file')
       return json.load(f_in)
-  else:
-      if db_map_env != None:
-        return json.load(db_map_env)
   return None
 
 def get_conn_map(dm):
   m = {}
   if dm == None:
     return None
-  for k, v in dm:
+  for k, v in dm.items():
     m[k] = psycopg2.connect(v)
+  return m
 
-@app.before_first_request
-def setup_global():
-  g.db_map = get_db_map()
-  g.conn_map = get_conn_map(g.db_map)
-
+db_map = get_db_map()
+conn_map = get_conn_map(db_map)
 
 @app.route('/ping')
 def hello_world():
   return jsonify(message="pong")
 
-@app.route('/users/<user_id>', methods=['GET'])
-def users(user_id):
-  print(g.db_map)
-  print(g.conn_map)
-  if g.conn_map is None:
-    return jsonify(message="conn_map is none"), 500
+@app.route('/actor/<actor_id>', methods=['GET'])
+def users(actor_id):
+  try:
+    if conn_map is None:
+      return jsonify(message="conn_map is none"), 500
 
-  client_id = request.headers.get('x-client-id')
-  if client_id is None:
-    return jsonify(message="x-client-id header not found"), 400
-  
-  if client_id not in g.db_map:
-    return jsonify(message='client id not in db map'), 500
-  
-  conn = g.conn_map[client_id]
+    client_id = request.headers.get('x-client-id')
+    if client_id is None:
+      return jsonify(message="x-client-id header not found"), 400
+    
+    if client_id not in db_map:
+      return jsonify(message='client id not in db map'), 500
+    
+    cur = conn_map[client_id].cursor()
 
-  cur = conn.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-  data = cur.fetchone()
+    cur.execute("SELECT * FROM actor WHERE actor_id = %s", (actor_id,))
+    data = cur.fetchone()
 
-  cur.close()
+    cur.close()
 
-  return jsonify(data=data)
+    return jsonify(data=data)
+  except Exception as e:
+    print(e)
+    return jsonify(error=str(e)), 500
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host='0.0.0.0')

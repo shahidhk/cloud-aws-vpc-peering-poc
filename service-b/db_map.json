@@ -1,3 +1,4 @@
 {
-  "c1": "postgres://postgres:@localhost:6432/postgres"
+  "c1": "postgres://postgres:abcd@localhost:8432/postgres",
+  "c2": "postgres://postgres:abcd@localhost:7432/postgres"
 }
